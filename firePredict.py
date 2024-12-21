@@ -1,80 +1,69 @@
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import GridSearchCV
-import joblib  # Agregar este import
+from sklearn.model_selection import train_test_split
+import joblib
+from datetime import datetime
 
-# Constantes y configuración
-RANDOM_SEED = 42
-TEST_SIZE = 0.2
+# Ruta del modelo y los datos
+MODEL_PATH = "modelo_incendios.pkl"
+DATA_PATH = "datos_historicos.csv"
 
-# Mejorar la generación de datos con más muestras
-data = pd.DataFrame({
-    "temperatura": [30, 25, 40, 35, 20, 28, 33, 26, 38, 22, 31, 36, 27, 34, 29],
-    "humedad": [20, 50, 10, 15, 60, 30, 25, 55, 12, 45, 35, 18, 52, 28, 40],
-    "viento": [10, 5, 20, 15, 5, 12, 18, 6, 22, 8, 14, 16, 7, 19, 11],
-    "incendio": [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0]
-})
+# Cargar datos históricos
+def cargar_datos(ruta):
+    return pd.read_csv(ruta)
 
-# Función para visualizar datos
-def visualizar_datos(data):
-    plt.figure(figsize=(10, 6))
-    sns.pairplot(data, hue="incendio")
-    plt.show()
-
-# Función para preparar datos
-def preparar_datos(data, test_size, random_seed):
-    X = data[["temperatura", "humedad", "viento"]]
+# Preprocesar datos
+def preprocesar_datos(data):
+    # Convertir fecha a formato datetime
+    data['fecha'] = pd.to_datetime(data['fecha'])
+    data['hora'] = pd.to_datetime(data['hora'], format='%H:%M:%S').dt.hour  # Extraer la hora como un número
+    # Generar características adicionales
+    data['mes'] = data['fecha'].dt.month
+    data['dia_del_año'] = data['fecha'].dt.dayofyear
+    # Seleccionar características y etiquetas
+    X = data[["temperatura", "humedad", "viento", "precipitacion", "mes", "dia_del_año", "hora", "latitud", "longitud"]]
     y = data["incendio"]
-    return train_test_split(X, y, test_size=test_size, random_state=random_seed)
+    return X, y
 
-# Función para entrenar y evaluar modelo
-def entrenar_modelo(X_train, y_train, X_test, y_test):
-    # Configuración de hiperparámetros más completa
-    parametros = {
-        "n_estimators": [100, 200, 300],
-        "max_depth": [None, 10, 20, 30],
-        "min_samples_split": [2, 5, 10],
-        "min_samples_leaf": [1, 2, 4],
-        "max_features": ["auto", "sqrt"]
-    }
-    
-    grid_search = GridSearchCV(
-        RandomForestClassifier(random_state=RANDOM_SEED),
-        parametros,
-        cv=5,  # Aumentado de 3 a 5
-        scoring='accuracy',
-        n_jobs=-1  # Usar todos los núcleos disponibles
-    )
-    
-    grid_search.fit(X_train, y_train)
-    mejor_modelo = grid_search.best_estimator_
-    
-    # Evaluación del modelo
-    score_train = mejor_modelo.score(X_train, y_train)
-    score_test = mejor_modelo.score(X_test, y_test)
-    
-    return mejor_modelo, score_train, score_test, grid_search.best_params_
+# Entrenar modelo
+def entrenar_modelo(X, y):
+    modelo = RandomForestClassifier(random_state=42)
+    modelo.fit(X, y)
+    return modelo
+
+# Guardar modelo
+def guardar_modelo(modelo, ruta):
+    joblib.dump(modelo, ruta)
+    print(f"Modelo guardado en {ruta}")
+
+# Predecir probabilidad de incendio
+def predecir_probabilidad(modelo, datos):
+    probabilidad = modelo.predict_proba([datos])[0][1]  # Probabilidad de clase 1 (incendio)
+    return probabilidad * 100
 
 # Ejecución principal
 if __name__ == "__main__":
-    # Preparar datos
-    X_train, X_test, y_train, y_test = preparar_datos(data, TEST_SIZE, RANDOM_SEED)
+    # Cargar y preprocesar datos
+    print("Cargando y preprocesando datos...")
+    datos_historicos = cargar_datos(DATA_PATH)
+    X, y = preprocesar_datos(datos_historicos)
     
-    # Entrenar y evaluar
-    modelo, score_train, score_test, mejores_params = entrenar_modelo(X_train, y_train, X_test, y_test)
+    # Dividir datos para entrenamiento y prueba
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    # Guardar el modelo entrenado
-    joblib.dump(modelo, "modelo_incendios.pkl")
-    print("\nModelo guardado como 'modelo_incendios.pkl'")
+    # Entrenar el modelo
+    print("Entrenando modelo...")
+    modelo = entrenar_modelo(X_train, y_train)
     
-    # Mostrar resultados
-    print(f"Precisión en entrenamiento: {score_train * 100:.2f}%")
-    print(f"Precisión en prueba: {score_test * 100:.2f}%")
-    print("\nMejores parámetros encontrados:")
-    for param, valor in mejores_params.items():
-        print(f"{param}: {valor}")
-
-
+    # Evaluar modelo
+    score = modelo.score(X_test, y_test)
+    print(f"Precisión del modelo: {score * 100:.2f}%")
+    
+    # Guardar modelo entrenado
+    guardar_modelo(modelo, MODEL_PATH)
+    
+    # Predecir probabilidad para nuevos datos
+    print("Prediciendo probabilidad de incendio...")
+    nuevos_datos = [35, 20, 15, 0, 7, 210, 14, -34.6, -58.4]  # Ejemplo de datos: Temp, Humedad, Viento, Precipitación, Mes, Día, Hora, Lat, Lon
+    probabilidad = predecir_probabilidad(modelo, nuevos_datos)
+    print(f"Probabilidad de incendio: {probabilidad:.2f}%")
