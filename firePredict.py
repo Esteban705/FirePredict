@@ -2,7 +2,6 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 import joblib
-from datetime import datetime
 
 # Ruta del modelo y los datos
 MODEL_PATH = "modelo_incendios.pkl"
@@ -14,12 +13,6 @@ def cargar_datos(ruta):
 
 # Preprocesar datos
 def preprocesar_datos(data):
-    # Convertir fecha a formato datetime
-    data['fecha'] = pd.to_datetime(data['fecha'])
-    data['hora'] = pd.to_datetime(data['hora'], format='%H:%M:%S').dt.hour  # Extraer la hora como un número
-    # Generar características adicionales
-    data['mes'] = data['fecha'].dt.month
-    data['dia_del_año'] = data['fecha'].dt.dayofyear
     # Seleccionar características y etiquetas
     X = data[["temperatura", "humedad", "viento", "precipitacion", "mes", "dia_del_año", "hora", "latitud", "longitud"]]
     y = data["incendio"]
@@ -61,9 +54,9 @@ if __name__ == "__main__":
     
     # Guardar modelo entrenado
     guardar_modelo(modelo, MODEL_PATH)
-    
+    """  
     # Predecir probabilidad para nuevos datos
     print("Prediciendo probabilidad de incendio...")
-    nuevos_datos = [35, 20, 15, 0, 7, 210, 14, -34.6, -58.4]  # Ejemplo de datos: Temp, Humedad, Viento, Precipitación, Mes, Día, Hora, Lat, Lon
+    nuevos_datos = [35, 20, 15, 0, 7, 210, 14, -34.6, -58.4]  # Ejemplo: Temp, Humedad, Viento, Precipitación, Mes, Día, Hora, Lat, Lon
     probabilidad = predecir_probabilidad(modelo, nuevos_datos)
-    print(f"Probabilidad de incendio: {probabilidad:.2f}%")
+    print(f"Probabilidad de incendio: {probabilidad:.2f}%") """
